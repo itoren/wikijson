@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>📖 WikiAPP</title>
+
+  <!-- Bootstrap 5 CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.5/dist/css/bootstrap.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.5/dist/js/bootstrap.bundle.min.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+
+  <!-- Vue.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/vue@3/dist/vue.global.js"></script>
+</head>
+<body data-bs-theme="light">
+
+<div id="app">
+  <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+    <div class="container">
+      <a class="navbar-brand" href="#!"><i class="bi bi-book"></i> WikiAPP</a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation"><span class="navbar-toggler-icon"></span></button>
+      <div class="collapse navbar-collapse" id="navbarSupportedContent">
+        <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
+          <li class="nav-item"><a class="nav-link disabled" href="#">Главная</a></li>
+          <li class="nav-item"><a class="nav-link disabled" href="#!">О нас</a></li>
+          <li class="nav-item"><a class="nav-link disabled" href="#!">Контакты</a></li>
+         <li class="nav-item dropdown">
+  <a class="nav-link dropdown-toggle" href="#" id="themeDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+    Тема <i class="bi bi-palette"></i>
+  </a>
+  <ul class="dropdown-menu" aria-labelledby="themeDropdown">
+    <li>
+      <a class="dropdown-item d-flex align-items-center" href="#" @click="setTheme('light')">
+        <i class="bi bi-brightness-high me-2"></i> Светлая
+      </a>
+    </li>
+    <li>
+      <a class="dropdown-item d-flex align-items-center" href="#" @click="setTheme('dark')">
+        <i class="bi bi-moon me-2"></i> Тёмная
+      </a>
+    </li>
+    <li>
+      <a class="dropdown-item d-flex align-items-center" href="#" @click="setTheme('auto')">
+        <i class="bi bi-circle-half me-2"></i> Автоматическая
+      </a>
+    </li>
+  </ul>
+</li>
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+<div class="container mt-5">
+  <!-- Two Columns Layout -->
+  <div class="row">
+    <!-- Left Column: Page List -->
+<div class="col-md-4 left-column">
+  <div class="mb-3">
+    <input type="text" v-model="searchQuery" placeholder="Найти страницу..." class="form-control">
+  </div>
+  <div class="card mb-3">
+    <div class="card-header">Страницы</div>
+    <ul class="list-group list-group-flush">
+      <li
+        v-for="page in filteredPages"
+        :key="page.filename"
+        class="list-group-item"
+        :class="{ active: page.filename === selectedPageFilename }" 
+        @click="loadPage(page.filename)"
+      >
+        {{ page.title }}
+      </li>
+    </ul>
+  </div>
+</div>
+
+    <!-- Right Column: Page Content -->
+    <div class="col-md-8 right-column">
+      <div v-if="selectedPageContent" class="card">
+        <div class="card-header">{{ selectedPageTitle }}</div>
+        <div class="card-body" v-html="selectedPageContent"></div>
+      </div>
+      <div v-else class="text-center">
+        <div class="spinner-border text-primary" role="status">
+          <span class="visually-hidden">Загрузка контента...</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+<script>
+  const { createApp } = Vue;
+
+  createApp({
+    data() {
+      return {
+        pages: [], // Список страниц с filename и title
+        searchQuery: '', // Поисковый запрос
+        selectedPageTitle: '', // Название выбранной страницы
+        selectedPageFilename: '', // Файл выбранной страницы (для подсветки)
+        selectedPageContent: null, // Содержимое выбранной страницы
+        theme: 'light', // Текущая тема
+      };
+    },
+    computed: {
+      filteredPages() {
+        return this.pages.filter(page =>
+          page.title.toLowerCase().includes(this.searchQuery.toLowerCase())
+        );
+      }
+    },
+    methods: {
+      async loadPage(filename) {
+        this.selectedPageTitle = ''; // Очищаем заголовок
+        this.selectedPageContent = null; // Очищаем содержимое
+            this.selectedPageFilename = filename; // Сохраняем выбранный filename
+
+
+        try {
+          const response = await fetch(`pages/${encodeURIComponent(filename)}.json`);
+          if (!response.ok) throw new Error('Страница не существует');
+          const pageData = await response.json();
+          this.selectedPageTitle = pageData.title || filename;
+          this.selectedPageContent = pageData.content || '';
+        } catch (error) {
+          this.selectedPageContent = `<p class="text-danger">Ошибка: ${error.message}</p>`;
+        }
+      },
+      setTheme(theme) {
+        if (theme === 'auto') {
+          const systemPreference = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+          document.body.setAttribute('data-bs-theme', systemPreference);
+          localStorage.setItem('userTheme', 'auto');
+        } else {
+          this.theme = theme;
+          document.body.setAttribute('data-bs-theme', theme);
+          localStorage.setItem('userTheme', theme); // Сохраняем выбранную тему
+        }
+      }
+    },
+    created() {
+      (async () => {
+        try {
+          const response = await fetch('pages-list.json');
+          if (!response.ok) throw new Error('Failed to load page list.');
+          this.pages = await response.json();
+
+          // Загрузка начальной страницы "index"
+          const initialPage = this.pages.find(page => page.filename === 'index');
+          if (initialPage) {
+            await this.loadPage(initialPage.filename);
+          }
+
+          // Проверка сохраненной темы пользователя
+          const savedTheme = localStorage.getItem('userTheme');
+          if (savedTheme === 'auto') {
+            const systemPreference = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+            this.setTheme(systemPreference);
+          } else {
+            this.setTheme(savedTheme || 'light'); // По умолчанию светлая тема
+          }
+        } catch (error) {
+          console.error(error);
+        }
+      })();
+    }
+  }).mount('#app');
+</script>
+
+</body>
+</html>
